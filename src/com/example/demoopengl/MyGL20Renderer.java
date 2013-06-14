@@ -3,18 +3,29 @@ package com.example.demoopengl;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
-import java.nio.ShortBuffer;
 
 import javax.microedition.khronos.egl.EGLConfig;
 import javax.microedition.khronos.opengles.GL10;
 
 import android.opengl.GLES20;
 import android.opengl.GLSurfaceView;
+import android.opengl.Matrix;
+import android.os.SystemClock;
 
 public class MyGL20Renderer implements GLSurfaceView.Renderer {
 	
 	private Triangle mTriangle;
 	//private Square mSquare;
+	
+	private final int X = 0, Y = 1, Z = 2;
+	private final float[] mMVPMatrix = new float[16];
+    private final float[] mProjMatrix = new float[16];
+    private final float[] mVMatrix = new float[16];
+    private final float[] mRotationMatrix = new float[16];
+    
+    public volatile float[] mRotationAxis = new float[3];
+    public volatile float mAngle = 0;
+    
 	@Override
 	public void onSurfaceCreated(GL10 gl, EGLConfig config) {
 		// Set the background frame color
@@ -28,14 +39,35 @@ public class MyGL20Renderer implements GLSurfaceView.Renderer {
 	
 	@Override
 	public void onDrawFrame(GL10 gl) {
+	    
 		// Redraw background color
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
-		mTriangle.draw();
+        
+        // Setup camera (view matrix)
+        Matrix.setLookAtM(mVMatrix, 0, 0, 0, -3, 0f, 0f, 0f, 0f, -1.0f, 0.0f);
+		
+     // Calculate the projection and view transformation
+        Matrix.multiplyMM(mMVPMatrix, 0, mProjMatrix, 0, mVMatrix, 0);
+        
+        /*long time = SystemClock.uptimeMillis() % 4000L;
+	    float angle = 0.090f * ((int) time);
+	    mAngle = angle;*/
+     // Setup rotation matrix
+        Matrix.setRotateM(mRotationMatrix, 0, mAngle, 0, 0, -1.0f);
+		Matrix.multiplyMM(mMVPMatrix, 0, mRotationMatrix, 0, mMVPMatrix, 0);
+		mTriangle.draw(mMVPMatrix);
+	
 	}
 
 	@Override
 	public void onSurfaceChanged(GL10 gl, int width, int height) {
 		 GLES20.glViewport(0, 0, width, height);
+		 
+		 float ratio = (float) width / height;
+		 
+		// this projection matrix is applied to object coordinates
+	        // in the onDrawFrame() method
+		 Matrix.frustumM(mProjMatrix, 0, -ratio, ratio, -1, 1, 2, 4);
 		
 	}
 	
@@ -53,12 +85,13 @@ public class MyGL20Renderer implements GLSurfaceView.Renderer {
 	static class Triangle {
 		
 		private final String vertexShaderCode =
+				"uniform mat4 uMVPMatrix; " +
 			    "attribute vec4 aPosition;" +
 			    "attribute vec4 aColor;" +
 			    "varying vec4 vColor;" +
 			    "void main() {" +
 			    "  vColor = aColor;" +
-			    "  gl_Position = aPosition;" +
+			    "  gl_Position = aPosition * uMVPMatrix;" +
 			    "}";
 		
 		private final String fragmentShaderCode =
@@ -72,6 +105,7 @@ public class MyGL20Renderer implements GLSurfaceView.Renderer {
 		private final int mProgram;
 		private int mPositionHandle;
 		private int mColorHandle;
+		private int mMVPMatrixHandle;
 		
 		static final int COORDS_PER_VERTEX = 3;
 		static final int COORDS_PER_COLOR = 4;
@@ -107,7 +141,7 @@ public class MyGL20Renderer implements GLSurfaceView.Renderer {
 	        GLES20.glLinkProgram(mProgram);                  // creates OpenGL ES program executables
 	    }
 	    
-	    public void draw() {
+	    public void draw(float [] mvpMatrix) {
 			// Add program to OpenGL ES environment
 			GLES20.glUseProgram(mProgram);
 			
@@ -122,8 +156,13 @@ public class MyGL20Renderer implements GLSurfaceView.Renderer {
 			vertexBuffer.position(3);
 			GLES20.glVertexAttribPointer(mColorHandle, COORDS_PER_COLOR, GLES20.GL_FLOAT, true, vertexStride, vertexBuffer);
 			
-			// Draw the triangle
+			// pass mvpMatrix
+			mMVPMatrixHandle = GLES20.glGetUniformLocation(mProgram, "uMVPMatrix");
+			GLES20.glUniformMatrix4fv(mMVPMatrixHandle, 1, false, mvpMatrix, 0);
+			
+			// draw
 			GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, vertexCount);
+			
 			// Disable vertex array
 			GLES20.glDisableVertexAttribArray(mPositionHandle);
 		}
