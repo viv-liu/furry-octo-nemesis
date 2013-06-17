@@ -10,7 +10,7 @@ import javax.microedition.khronos.opengles.GL10;
 import android.opengl.GLES20;
 import android.opengl.GLSurfaceView;
 import android.opengl.Matrix;
-import android.os.SystemClock;
+//import android.os.SystemClock;
 
 public class MyGL20Renderer implements GLSurfaceView.Renderer {
 	
@@ -19,11 +19,23 @@ public class MyGL20Renderer implements GLSurfaceView.Renderer {
 	
 	private final int X = 0, Y = 1, Z = 2;
 	private final float[] mMVPMatrix = new float[16];
+	private final float[] mModelMatrix = new float[16];
     private final float[] mProjMatrix = new float[16];
     private final float[] mVMatrix = new float[16];
     private final float[] mRotationMatrix = new float[16];
+    /** Store the accumulated rotation. */
+    private final float[] mAccumulatedRotation = new float[16];
+     
+    /** Store the current rotation. */
+    private final float[] mCurrentRotation = new float[16];
+    public int axisIndex;    
+    public float[][] mAxis = {
+    		{1, 0, 0},
+    		{0, 1, 0},
+    		{0, 0, 1}
+    };
     
-    public volatile float[] mRotationAxis = new float[3];
+    public volatile float mDeltaX = 0, mDeltaY = 0;
     public volatile float mAngle = 0;
     
 	@Override
@@ -34,27 +46,41 @@ public class MyGL20Renderer implements GLSurfaceView.Renderer {
 		mTriangle = new Triangle();
 		//mSquare = new Square();
 		
+		Matrix.setIdentityM(mAccumulatedRotation, 0);
+		
 		
 	}
 	
 	@Override
 	public void onDrawFrame(GL10 gl) {
-	    
+		
 		// Redraw background color
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
         
+        // Translate triangle into screen
+        Matrix.setIdentityM(mModelMatrix, 0);
+        Matrix.translateM(mModelMatrix, 0, 0, 0.8f, -3.5f);
+        
+     // Set a matrix that contains the current rotation.
+        Matrix.setIdentityM(mCurrentRotation, 0);        
+    	Matrix.rotateM(mCurrentRotation, 0, mDeltaX, 0.0f, 1.0f, 0.0f);
+    	Matrix.rotateM(mCurrentRotation, 0, mDeltaY, 1.0f, 0.0f, 0.0f);
+    	mDeltaX = 0.0f;
+    	mDeltaY = 0.0f;
+    	
+    	// Multiply the current rotation by the accumulated rotation, and then set the accumulated rotation to the result.
+    	Matrix.multiplyMM(mAccumulatedRotation, 0, mCurrentRotation, 0, mAccumulatedRotation, 0);
+    	
         // Setup camera (view matrix)
-        Matrix.setLookAtM(mVMatrix, 0, 0, 0, -3, 0f, 0f, 0f, 0f, -1.0f, 0.0f);
+        Matrix.setLookAtM(mVMatrix, 0, 0, 0, -3, 0f, 0f, 0f, 0f, -1.0f, 0f);
 		
      // Calculate the projection and view transformation
         Matrix.multiplyMM(mMVPMatrix, 0, mProjMatrix, 0, mVMatrix, 0);
         
-        /*long time = SystemClock.uptimeMillis() % 4000L;
-	    float angle = 0.090f * ((int) time);
-	    mAngle = angle;*/
      // Setup rotation matrix
-        Matrix.setRotateM(mRotationMatrix, 0, mAngle, 0, 0, -1.0f);
-		Matrix.multiplyMM(mMVPMatrix, 0, mRotationMatrix, 0, mMVPMatrix, 0);
+     //   Matrix.setRotateM(mRotationMatrix, 0, mAngle, mAxis[axisIndex][0], mAxis[axisIndex][1], mAxis[axisIndex][2]);
+		Matrix.multiplyMM(mMVPMatrix, 0, mAccumulatedRotation, 0, mMVPMatrix, 0);
+       
 		mTriangle.draw(mMVPMatrix);
 	
 	}
