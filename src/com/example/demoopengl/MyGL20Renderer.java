@@ -10,33 +10,25 @@ import javax.microedition.khronos.opengles.GL10;
 import android.opengl.GLES20;
 import android.opengl.GLSurfaceView;
 import android.opengl.Matrix;
-//import android.os.SystemClock;
+
 
 public class MyGL20Renderer implements GLSurfaceView.Renderer {
 	
 	private Triangle mTriangle;
-	//private Square mSquare;
+	//private Square mSquare
 	
-	private final int X = 0, Y = 1, Z = 2;
 	private final float[] mMVPMatrix = new float[16];
-	private final float[] mModelMatrix = new float[16];
     private final float[] mProjMatrix = new float[16];
     private final float[] mVMatrix = new float[16];
-    private final float[] mRotationMatrix = new float[16];
+    
     /** Store the accumulated rotation. */
     private final float[] mAccumulatedRotation = new float[16];
      
     /** Store the current rotation. */
     private final float[] mCurrentRotation = new float[16];
     public int axisIndex;    
-    public float[][] mAxis = {
-    		{1, 0, 0},
-    		{0, 1, 0},
-    		{0, 0, 1}
-    };
     
     public volatile float mDeltaX = 0, mDeltaY = 0;
-    public volatile float mAngle = 0;
     
 	@Override
 	public void onSurfaceCreated(GL10 gl, EGLConfig config) {
@@ -53,18 +45,15 @@ public class MyGL20Renderer implements GLSurfaceView.Renderer {
 	
 	@Override
 	public void onDrawFrame(GL10 gl) {
+		// Note: all int mOffset mean an index in the float array to start looking at the matrix.
 		
 		// Redraw background color
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
         
-        // Translate triangle into screen
-        Matrix.setIdentityM(mModelMatrix, 0);
-        Matrix.translateM(mModelMatrix, 0, 0, 0.8f, -3.5f);
-        
-     // Set a matrix that contains the current rotation.
+        // Set rotation matrix 
         Matrix.setIdentityM(mCurrentRotation, 0);        
-    	Matrix.rotateM(mCurrentRotation, 0, mDeltaX, 0.0f, 1.0f, 0.0f);
-    	Matrix.rotateM(mCurrentRotation, 0, mDeltaY, 1.0f, 0.0f, 0.0f);
+    	Matrix.rotateM(mCurrentRotation, 0, mDeltaX, 0.0f, 1.0f, 0.0f); // Rotate around y-axis first! Otherwise we'll get a pitch
+    	Matrix.rotateM(mCurrentRotation, 0, mDeltaY, 1.0f, 0.0f, 0.0f);	// Rotate around x-axis.
     	mDeltaX = 0.0f;
     	mDeltaY = 0.0f;
     	
@@ -72,13 +61,12 @@ public class MyGL20Renderer implements GLSurfaceView.Renderer {
     	Matrix.multiplyMM(mAccumulatedRotation, 0, mCurrentRotation, 0, mAccumulatedRotation, 0);
     	
         // Setup camera (view matrix)
-        Matrix.setLookAtM(mVMatrix, 0, 0, 0, -3, 0f, 0f, 0f, 0f, -1.0f, 0f);
+        Matrix.setLookAtM(mVMatrix, 0, 0, 0, 2, 0f, 0f, 0f, 0f, 1.0f, 0f); // Camera located at (0,0,2) and its top is pointing along the (0,1,0) axis. 
 		
-     // Calculate the projection and view transformation
+        // Calculate the projection and view transformation
         Matrix.multiplyMM(mMVPMatrix, 0, mProjMatrix, 0, mVMatrix, 0);
         
-     // Setup rotation matrix
-     //   Matrix.setRotateM(mRotationMatrix, 0, mAngle, mAxis[axisIndex][0], mAxis[axisIndex][1], mAxis[axisIndex][2]);
+        // Setup rotation matrix
 		Matrix.multiplyMM(mMVPMatrix, 0, mAccumulatedRotation, 0, mMVPMatrix, 0);
        
 		mTriangle.draw(mMVPMatrix);
@@ -93,7 +81,15 @@ public class MyGL20Renderer implements GLSurfaceView.Renderer {
 		 
 		// this projection matrix is applied to object coordinates
 	        // in the onDrawFrame() method
-		 Matrix.frustumM(mProjMatrix, 0, -ratio, ratio, -1, 1, 2, 4);
+		
+		 //				  _____________
+		 //				 |\			  /|
+		 //				 | \		 / |	
+		 // (-ratio, top)|  ---------  |
+		 // 			  \ |		| /
+		 //					--------- (ratio, bottom)
+		 // and (-z) coordinates for frustom faces (by convention)
+		 Matrix.frustumM(mProjMatrix, 0, -ratio, ratio, -1, 1, 1, 5);
 		
 	}
 	
@@ -168,12 +164,14 @@ public class MyGL20Renderer implements GLSurfaceView.Renderer {
 	    }
 	    
 	    public void draw(float [] mvpMatrix) {
+	    	// Note: Always specify the index for vertexBuffer. Don't leave it floating!
 			// Add program to OpenGL ES environment
 			GLES20.glUseProgram(mProgram);
 			
 			// pass Position info
 			mPositionHandle = GLES20.glGetAttribLocation(mProgram,  "aPosition");
 			GLES20.glEnableVertexAttribArray(mPositionHandle);
+			vertexBuffer.position(0); // Like dis.
 			GLES20.glVertexAttribPointer(mPositionHandle, COORDS_PER_VERTEX, GLES20.GL_FLOAT, false, vertexStride, vertexBuffer);
 			
 			// pass Color info
